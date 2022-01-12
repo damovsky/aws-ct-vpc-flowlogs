@@ -273,23 +273,13 @@ Resources:
       EventBusName: !Ref EventBusName
       EventPattern:
         {
-          "source": [
-            "aws.tag"
-          ],
-          "detail-type": [
-            "Tag Change on Resource"
-          ],
-          "detail": {
-            "changed-tag-keys": !FindInMap [LambdaVariable, Tag, KeyList],
-            "service": [
-              "ec2"
-            ],
-            "resource-type": [
-              "subnet",
-              "vpc"
-            ]
+            "source": ["aws.ec2"],
+            "detail-type": ["AWS API Call via CloudTrail"],
+            "detail": {
+              "eventSource": ["ec2.amazonaws.com"],
+              "eventName": ["CreateVpc"]
+            }
           }
-        }
       State: ENABLED
       Targets:
         - Arn: !GetAtt FlowLogActivator.Arn
@@ -312,26 +302,16 @@ Resources:
       Description: FlowLog - Trigger for create/update tag from local account via Default Event Bus
       EventPattern:
         {
-          "account": [
-            !Ref "AWS::AccountId"
-          ],
-          "source": [
-            "aws.tag"
-          ],
-          "detail-type": [
-            "Tag Change on Resource"
-          ],
-          "detail": {
-            "changed-tag-keys": !FindInMap [LambdaVariable, Tag, KeyList],
-            "service": [
-              "ec2"
+            "account": [
+              !Ref "AWS::AccountId"
             ],
-            "resource-type": [
-              "subnet",
-              "vpc"
-            ]
+            "source": ["aws.ec2"],
+            "detail-type": ["AWS API Call via CloudTrail"],
+            "detail": {
+              "eventSource": ["ec2.amazonaws.com"],
+              "eventName": ["CreateVpc"]
+            }
           }
-        }
       State: ENABLED
       Targets:
         - Arn: !GetAtt FlowLogActivator.Arn

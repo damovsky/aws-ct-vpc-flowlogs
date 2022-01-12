@@ -107,7 +107,7 @@ def parse_flowlog_tag(tags, resource_type):
     '''
     try:
         if resource_type == "VPC": 
-            flowlog_tag = get_flowlog_filter(os.environ['default_traffic_to_log'])
+            flowlog_tag = get_flowlog_filter('ALL')
         else: 
             flowlog_tag = -1
         
@@ -244,6 +244,11 @@ def assume_role(aws_account_number, role_name, external_id):
     :param aws_region: AWS Region for the Client call
     :return: Session object for the specified AWS Account and Region
     '''
+    LOGGER.info("assume role for aws_account_number " + aws_account_number)
+    LOGGER.info("assume role for role_name " + role_name)
+    LOGGER.info("assume role for external_id " + external_id)
+
+
     try:
         sts_client = boto3.client('sts')
         partition = sts_client.get_caller_identity()['Arn'].split(":")[1]
@@ -413,7 +418,7 @@ def lambda_handler(event, context):
         child_handler(event, context)
 
     # Custom handler takes Event Bus from hub account for tag update at subnet and vpc level
-    elif 'detail-type' in event and event['detail-type'] == 'Tag Change on Resource':
+    elif 'detail-type' in event and event['detail-type'] == 'AWS API Call via CloudTrail':
         LOGGER.info("Using Event Bus Handler")
         eventbridge_handler(event, context)
 
@@ -423,21 +428,15 @@ def lambda_handler(event, context):
 
 
 def eventbridge_handler(event, context):
-    for key in event['detail']['changed-tag-keys']:
-        if str.lower(key) in tag_keyword:
-            partition = context.invoked_function_arn.split(":")[1]
-
-            if event['detail']['resource-type'] in ['vpc', 'subnet']:
-                for resource in event['resources']:
-                    resource_id = resource.split(":")[5].split("/")[1]
-                    account_id = event['account']
-                    region = event['region']
-                    tags = event['detail']['tags']
-                    resource_type = resource_type_map[event['detail']['resource-type']]
-                    target_session = assume_role(account_id, os.environ['assume_role'], os.environ['org_id'])
-                    flow_log_handler(target_session, event, partition, resource_id, resource_type, tags, account_id, region)
-        else:
-            LOGGER.info("Skipping non supported tag: {}".format(key))
+    LOGGER.info('eventbridge_handler: found responseElements')
+    partition = context.invoked_function_arn.split(":")[1]
+    resource_id =  event['detail']['responseElements']['vpc']['vpcId']
+    account_id = event['account']
+    region = event['region']
+    resource_type = 'VPC'
+    target_session = assume_role(account_id, os.environ['assume_role'], os.environ['org_id'])
+    tags = {"flowlog": "ACCEPT"}
+    flow_log_handler(target_session, event, partition, resource_id, resource_type, tags, account_id, region)
 
 
 def cfn_handler(event, context):
@@ -485,6 +484,7 @@ def child_handler(event, context):
 
 
 def primary_handler(context):
+    LOGGER.info("primary handler starting")
     master_session = assume_role(os.environ['master_account'], os.environ['master_role'], os.environ['org_id'])
 
     # Look at stackset for existing deployment and do enforcement
